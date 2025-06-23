@@ -1,6 +1,13 @@
-int count;
-count = 3;
-while (count > 0) {
-    print(count);
-    count = count - 1;
+int x;
+x = 5 + 10;
+print(x);
+
+if (x > 5) {
+    x = x - 1;
+} else {
+    print(x);
+}
+
+while (x > 0) {
+    x = x - 1;
 }
