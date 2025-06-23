@@ -1,12 +1,22 @@
 package compiler;
 
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.ArrayList;
 import static compiler.SimpleLexer.*;
 
 public class SimpleParser {
 
     private final List<LexToken> tokens;
     private int currentIndex = 0;
+    private final Set<String> declaredVariables = new HashSet<>();
+    private int tempCounter = 0;
+    private List<String> threeAddressCode = new ArrayList<>();
+
+    private String newTemp() {
+        return "t" + (tempCounter++);
+    }
 
     public SimpleParser(List<LexToken> tokens) {
         this.tokens = tokens;
@@ -17,8 +27,24 @@ public class SimpleParser {
         while (!isAtEnd()) {
             parseStatement();
         }
+
         System.out.println("✅ Syntax Analysis: Passed.");
+
+        // Print generated 3-address code (if you're using code generation)
+        if (!threeAddressCode.isEmpty()) {
+            System.out.println("Generated 3-Address Code:");
+            for (String line : threeAddressCode) {
+                System.out.println(line);
+            }
+        }
+
+        // ✅ Print the Symbol Table (Declared Variables)
+        System.out.println("Declared Variables (Symbol Table):");
+        for (String var : declaredVariables) {
+            System.out.println("- " + var);
+        }
     }
+
 
 
     // ========== STATEMENTS ==========
@@ -39,15 +65,71 @@ public class SimpleParser {
         }
     }
 
+    private String consumeIdentifier(String errorMessage) {
+        if (check(LexType.IDENTIFIER)) {
+            String name = peek().lexValue;
+            advance();
+            return name;
+        } else {
+            error(errorMessage);
+            return null; // unreachable
+        }
+    }
+
+    private String parseExpressionWithCode() {
+        String left = parseTermWithCode();
+        while (match(LexType.OPERATOR, "+", "-")) {
+            String op = previous().lexValue;
+            String right = parseTermWithCode();
+            String temp = newTemp();
+            threeAddressCode.add(temp + " = " + left + " " + op + " " + right);
+            left = temp;
+        }
+        return left;
+    }
+
+    private String parseTermWithCode() {
+        String left = parseFactorWithCode();
+        while (match(LexType.OPERATOR, "*", "/")) {
+            String op = previous().lexValue;
+            String right = parseFactorWithCode();
+            String temp = newTemp();
+            threeAddressCode.add(temp + " = " + left + " " + op + " " + right);
+            left = temp;
+        }
+        return left;
+    }
+
+    private String parseFactorWithCode() {
+        if (match(LexType.NUMBER) || match(LexType.IDENTIFIER)) {
+            return previous().lexValue;
+        } else if (match(LexType.LEFT_PAREN)) {
+            String expr = parseExpressionWithCode();
+            consume(LexType.RIGHT_PAREN, "Expected ')' after expression.");
+            return expr;
+        } else {
+            error("Expected number, variable, or expression.");
+            return null;
+        }
+    }
+
     private void parseDeclaration() {
-        consume(LexType.IDENTIFIER, "Expected variable name after 'int'.");
+        String varName = consumeIdentifier("Expected variable name after 'int'.");
+        if (declaredVariables.contains(varName)) {
+            error("Variable '" + varName + "' already declared.");
+        }
+        declaredVariables.add(varName);
         consume(LexType.SEMICOLON, "Expected ';' after declaration.");
     }
 
     private void parseAssignment() {
-        consume(LexType.IDENTIFIER, "Expected variable name.");
+        String varName = consumeIdentifier("Expected variable name.");
+        if (!declaredVariables.contains(varName)) {
+            error("Variable '" + varName + "' not declared.");
+        }
         consume(LexType.ASSIGN_OP, "Expected '=' in assignment.");
-        parseExpression();
+        String result = parseExpressionWithCode();
+        threeAddressCode.add(varName + " = " + result);
         consume(LexType.SEMICOLON, "Expected ';' after assignment.");
     }
 
@@ -70,10 +152,17 @@ public class SimpleParser {
 
     private void parsePrintStatement() {
         consume(LexType.LEFT_PAREN, "Expected '(' after 'print'.");
+        if (check(LexType.IDENTIFIER)) {
+            String varName = peek().lexValue;
+            if (!declaredVariables.contains(varName)) {
+                error("Semantic Error: Variable '" + varName + "' not declared.");
+            }
+        }
         parseExpression();
         consume(LexType.RIGHT_PAREN, "Expected ')' after expression.");
         consume(LexType.SEMICOLON, "Expected ';' after print statement.");
     }
+
 
     private void parseBlock() {
         consume(LexType.LEFT_BRACE, "Expected '{' to start block.");
