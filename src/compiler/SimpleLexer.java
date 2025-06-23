@@ -91,7 +91,7 @@ public class SimpleLexer {
 
     // 5. Main Method (Reads File and Prints Tokens)
     public static void main(String[] args) {
-        String fileName = "src/compiler/input.minilang";
+        String fileName = "src/input.minilang";
         StringBuilder sourceBuilder = new StringBuilder();
 
         try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
